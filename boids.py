@@ -5,11 +5,36 @@ import pygame
 from pygame.locals import *
 import random
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Iterable
+
 
 FPS = 30
 SCREENSIZE = (800, 600)
-ENTCOUNT = 25
+ENTCOUNT = 200
+
+# rules that boids live by:
+###########################
+def rules(boid, group: Iterable[object]):
+    
+    def seperation() -> float:
+        too_close = filter(
+            lambda b: (np.hypot(*(b.pos - boid.pos)) < boid.seperation_distance),
+            group
+        )
+        point = np.mean([b.pos for b in too_close], axis=0)
+        return np.arctan2(*(point - boid.pos)) - boid.angle + np.pi
+
+    def alignment() -> float:
+        return np.mean([b.angle for b in group], axis=0) - boid.angle
+
+    def cohesion() -> float:
+        vector = np.mean([b.pos for b in group], axis=0)
+        return np.arctan2(*(vector - boid.pos)) - boid.angle
+    angles = np.array([[seperation(), alignment(), cohesion()]])
+    weights = np.array([0.5, 1e6, 1e4])
+    return np.mean(angles * weights)
+############################
+
 
 @dataclass
 class Target:
@@ -26,6 +51,13 @@ class Boid:
     overlay.set_colorkey((0, 0, 0))
     overlay.set_alpha(50)
     game_border = surface.get_rect()
+    border_walls = [
+        pygame.Rect(0, 0, SCREENSIZE[0], 10),
+        pygame.Rect(0, SCREENSIZE[1]-10, SCREENSIZE[0], 10),
+        pygame.Rect(0, 0, 10, SCREENSIZE[1]),
+        pygame.Rect(SCREENSIZE[0]-10, 0, 10, SCREENSIZE[1])
+    ]
+    seperation_distance = 20
 
 
     def __init__(self,
@@ -33,8 +65,9 @@ class Boid:
     speed: float = 4,
     angle: float = 0.,
     color = [0, 20, 200],
-    sight = 10,
-    size = 10
+    sight = 5,
+    size = 5,
+    turn_rate = np.pi/64
     ):
         assert len(pos) == 2
         self.pos = np.array(pos, dtype=float)
@@ -43,10 +76,12 @@ class Boid:
         self.vector = None
         self.calc_vector()
         self.color = np.random.randint(0, 255, 3)
-        self.outline_color = np.random.randint(0, 255, 3)
+        self.outline_color = (255, 255, 255)
         self.size = float(size)
-        self.rect = pygame.Rect(*self.pos, size, size)
-        self.sight = pygame.Rect(*self.pos, size*sight, size*sight)
+        self.rect = pygame.Rect(*self.pos.astype(int), size, size)
+        self.sight = pygame.Rect(*self.pos.astype(int), size*sight, size*sight)
+        self.seperation_distance = sight*size / 2
+        self.turn_rate = turn_rate
 
         self.instances.append(self)
         self.inst_rects.append(self.rect)
@@ -54,9 +89,6 @@ class Boid:
 
     def calc_vector(self):
         self.vector = np.array([np.sin(self.angle), np.cos(self.angle)])
-
-    def change_dir(self):
-        self.angle += np.random.rand() / 4 * np.pi
 
     @property
     def poly(self) -> List[Tuple[int]]:
@@ -68,14 +100,15 @@ class Boid:
         return points * self.size + self.pos
 
     @classmethod
-    def blit(cls):
+    def get_surface(cls):
         cls.surface.blit(cls.overlay, (0, 0))
+        return cls.surface
 
     @classmethod
-    def get_collisions(cls, rect) -> list:
-        return [
-            b for b in filter(
-                lambda x: rect.colliderect(x.rect), cls.instances)]
+    def get_collisions(cls, boid, rect) -> list:
+        return [b for b in filter(
+            lambda x: x is not boid and rect.colliderect(x.rect), cls.instances)
+        ]
 
     @staticmethod
     def calculate_distance(x1, y1, x2, y2):
@@ -92,58 +125,40 @@ class Boid:
             instance.move()
 
     def move(self):
-        self.angle %= 2*np.pi
-        # if self.angle > (2 * np.pi):
-        #     self.angle -= (2 * np.pi)
-
-        # elif self.angle < -(2 * np.pi):
-        #     self.angle += (2 * np.pi)
-
         self.pos += self.speed * np.array([np.sin(self.angle), np.cos(self.angle)])
 
         if self.pos[0] < 0:
-            self.pos[0] = self.game_border.width
+            self.pos[0] += self.game_border.width
 
         elif self.pos[0] > self.game_border.width:
-            self.pos[0] = 0.
+            self.pos[0] -= self.game_border.width
 
         if self.pos[1] < 0:
-            self.pos[1] = self.game_border.height
+            self.pos[1] += self.game_border.height
 
         elif self.pos[1] > self.game_border.height:
-            self.pos[1] = 0.
+            self.pos[1] -= self.game_border.height
 
-        self.rect.center = self.pos
-        self.sight.center = self.pos
+        self.rect.center = self.pos.astype(int)
+        self.sight.center = self.pos.astype(int)
 
     def update(self):
+        group = self.get_collisions(self, self.sight)
+        new_angle = rules(self, group)
+        if new_angle is not (np.nan or 0):
+            if new_angle > 0:
+                self.angle += min(self.turn_rate, new_angle)
+            elif new_angle < 0:
+                self.angle -= min(self.turn_rate, -new_angle)
 
-        if self.sight.collidelist(self.inst_rects) != -1:
-            collisions = self.get_collisions(self.sight)
-            collisions.remove(self)
-            # find closest object
-            if collisions:
-                target = Target(min(collisions, key=lambda b: self.calculate_distance(*self.pos, *b.pos)))
-                target.pos = target.obj.pos - self.pos
-                target.angle = target.pos[1]/target.pos[0]
-                self.angle += target.angle / (np.hypot(target.pos[0], target.pos[1]) + self.size)
-                self.focus = target
-            else:
-                self.focus = None
-            
-        else:
-            self.focus = None
-        try:
-            pygame.draw.polygon(self.surface, self.color, self.poly)
-        except TypeError:
-            print(
-                'TypeError: pygame.draw.polygon(self.surface, self.color, self.poly)',
-                self.poly
-            )
-        pygame.draw.aalines(self.surface, self.outline_color, True, self.poly)
+        if self.angle < -(2*np.pi):
+            self.angle += 2 * np.pi
+        elif self.angle > (2*np.pi):
+            self.angle -= 2 * np.pi
+
+        pygame.draw.polygon(self.surface, self.color, self.poly.astype(int))
+        # pygame.draw.aalines(self.surface, self.outline_color, True, self.poly)
         # pygame.draw.circle(self.overlay, (255, 255, 255), self.sight.center, self.sight.width//3)
-        if self.focus:
-            pygame.draw.aaline(self.surface, self.color, self.pos, self.focus.obj.pos, False)
 
 
 def main_loop(
@@ -165,9 +180,9 @@ def main_loop(
         Boid.move_all()
         Boid.update_all()
 
-        Boid.blit()
-
-        screen.blit(Boid.surface, (0, 0), special_flags=BLEND_MAX)
+        for wall in Boid.border_walls:
+            pygame.draw.rect(screen, (150, 150, 150), wall)
+        screen.blit(Boid.get_surface(), (0, 0), special_flags=BLEND_MAX)
 
         pygame.display.flip()
         clock.tick(FPS)
