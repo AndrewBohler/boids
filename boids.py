@@ -159,23 +159,21 @@ class Boid:
         *[pygame.Rect(                            x*10,                 SCREENSIZE[1]-10, 10, 10) for x in range(SCREENSIZE[0]//10 + 1)],
         *[pygame.Rect(                               0,                             y*10, 10, 10) for y in range(SCREENSIZE[1]//10 + 1)],
         *[pygame.Rect(                SCREENSIZE[0]-10,                             y*10, 10, 10) for y in range(SCREENSIZE[1]//10 + 1)],
-        *[pygame.Rect(np.random.randint(SCREENSIZE[0]), np.random.randint(SCREENSIZE[1]), 15, 15) for _ in range(                   25)],
+        *[pygame.Rect(np.random.randint(SCREENSIZE[0]), np.random.randint(SCREENSIZE[1]), 10, 10) for _ in range(                   50)],
     ]
 
     def __init__(self,
     pos: List[int],
     speed: float = 3.5,
     angle: float = np.random.rand(),
-    color = [100, 100, 255],
     sight = 100,
-    size = 5,
+    size = 3,
     turn_rate = np.pi/16
     ):
         assert len(pos) == 2
         self.pos = np.array(pos, dtype=float)
         self.speed = float(speed)
         self.vector = np.array([np.cos(angle), np.sin(angle)])
-        self.color = color
         self.outline_color = (255, 255, 255)
         self.size = float(size)
         self.rect = pygame.Rect(*self.pos.astype(int), size, size)
@@ -191,6 +189,19 @@ class Boid:
     def angle(self) -> float:
         angle = np.arctan2(self.vector[1], self.vector[0])
         return (angle + 2*np.pi) % (2*np.pi)
+
+    @property
+    def color(self) -> np.ndarray:
+        offset = 2 * np.pi / 3
+        angle = self.angle
+
+        color = np.array([
+            np.cos(angle) * 127 + 127,
+            np.cos(angle + offset) * 127 + 127,
+            np.cos(angle - offset) * 127 + 127
+        ], dtype=int)
+
+        return color
 
     @staticmethod
     def angle_to_vector(angle):
