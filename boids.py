@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
+from itertools import chain
 import math
 import numpy as np
 import pygame
@@ -11,29 +12,40 @@ from typing import List, Tuple, Iterable
 
 
 FPS = 60
-SCREENSIZE = (800, 600)
-ENTCOUNT = 100
-DEBUG = False
+SCREENSIZE = (500, 500)
+GRID_TILE_SIZE = 25 # pixels
+N_BOID = 100
+BOID_SEPERATION_DISTANCE = 7
+BOID_SIZE = 3
+BOID_SIGHT = 25
+BOID_SPEED = 3
+BOID_OBST_AVOID_ARC = np.pi/16 # radians
+RULE_WEIGHTS = np.array([
+    [1.  ], # boid.vector
+    [ .15], # seperation
+    [ .1 ], # alignment
+    [ .1 ], # cohesion
+    [ .8 ]  # obstacle
+], dtype=float)
 
+DEBUG = False
 DEBUG_SURF = pygame.Surface(SCREENSIZE)
 DEBUG_SURF.set_colorkey((0, 0, 0))
+
+GRID = np.empty([d // GRID_TILE_SIZE + 1 for d in SCREENSIZE], dtype=list)
+for row in range(GRID.shape[0]):
+    for col in range(GRID.shape[1]):
+        GRID[row, col] = defaultdict(list)
+
 
 # rules that boids live by:
 ###########################
 def rules(
     boid,
     group: Iterable[object],
-    obstacles: Iterable[pygame.Rect]
+    obstacles: Iterable[pygame.Rect],
+    weights=RULE_WEIGHTS
     ) -> np.ndarray:
-
-
-    weights = np.array([
-        [1],  # boid.vector
-        [.15], # seperation
-        [.1], # alignment
-        [.1], # cohesion
-        [.8]  # obstacle
-    ], dtype=float)
 
     def seperation() -> np.ndarray:
         # weight 1
@@ -74,7 +86,6 @@ def rules(
 
         else:
             return np.array([np.nan, np.nan])
-
 
     def obstacle() -> np.ndarray:
         # weight 4
@@ -132,7 +143,6 @@ def rules(
 
         return -unit_vector * (distance/ boid.seperation_distance)
         
-    
     ret = np.array([
         boid.vector,
         seperation(),
@@ -159,18 +169,28 @@ class Boid:
         *[pygame.Rect(                            x*10,                 SCREENSIZE[1]-10, 10, 10) for x in range(SCREENSIZE[0]//10 + 1)],
         *[pygame.Rect(                               0,                             y*10, 10, 10) for y in range(SCREENSIZE[1]//10 + 1)],
         *[pygame.Rect(                SCREENSIZE[0]-10,                             y*10, 10, 10) for y in range(SCREENSIZE[1]//10 + 1)],
-        *[pygame.Rect(np.random.randint(SCREENSIZE[0]), np.random.randint(SCREENSIZE[1]), 10, 10) for _ in range(                   50)],
+        # *[pygame.Rect(np.random.randint(SCREENSIZE[0]), np.random.randint(SCREENSIZE[1]), 10, 10) for _ in range(                   50)],
     ]
+    for wall in border_walls:
+        GRID[
+            wall.center[0] // GRID_TILE_SIZE,
+            wall.center[1] // GRID_TILE_SIZE
+        ]['walls'].append(wall)
+
+    # for x in range(GRID.shape[0]):
+    #     for y in range(GRID.shape[1]):
+    #         lst = GRID[x, y]['walls']
+    #         print(f'({x:>2}, {y:>2}) : {len(lst)} walls')
 
     def __init__(self,
     pos: List[int],
-    speed: float = 3.5,
-    angle: float = np.random.rand(),
-    sight = 100,
-    size = 3,
-    turn_rate = np.pi/16
+    speed: float,
+    sight: float,
+    size: float,
+    seperation_distance: float,
+    angle: float = 0.,
+    obst_avoidance_arc = np.pi/8
     ):
-        assert len(pos) == 2
         self.pos = np.array(pos, dtype=float)
         self.speed = float(speed)
         self.vector = np.array([np.cos(angle), np.sin(angle)])
@@ -178,12 +198,26 @@ class Boid:
         self.size = float(size)
         self.rect = pygame.Rect(*self.pos.astype(int), size, size)
         self.sight = pygame.Rect(*self.pos.astype(int), sight, sight)
-        self.seperation_distance = sight/2
-        self.turn_rate = turn_rate
+        self.seperation_distance = seperation_distance
+        self.obst_avoidance_arc = obst_avoidance_arc
 
         self.instances.append(self)
         self.inst_rects.append(self.rect)
-        self.focus = None
+        self.grid_loc = tuple(self.pos.astype(int) // GRID_TILE_SIZE)
+        GRID[self.grid_loc][self.__class__].append(self)
+
+    def grid_adjacent(self, distance=1) -> np.array:
+        x0 = max(self.grid_loc[0] - 1, 0)
+        y0 = max(self.grid_loc[1] - 1, 0)
+        x2 = min(
+            (self.grid_loc[0] + 2),
+            SCREENSIZE[0] // GRID_TILE_SIZE + 1
+        )
+        y2 = min(
+            (self.grid_loc[1] + 2),
+            SCREENSIZE[1] // GRID_TILE_SIZE + 1
+        )
+        return GRID[x0:x2, y0:y2]
 
     @property
     def angle(self) -> float:
@@ -196,7 +230,7 @@ class Boid:
         angle = self.angle
 
         color = np.array([
-            np.cos(angle) * 127 + 127,
+            np.cos(angle         ) * 127 + 127,
             np.cos(angle + offset) * 127 + 127,
             np.cos(angle - offset) * 127 + 127
         ], dtype=int)
@@ -252,44 +286,41 @@ class Boid:
         self.rect.center = self.pos.astype(int)
         self.sight.center = self.pos.astype(int)
 
+        # keep track of grid location
+        if tuple(self.pos.astype(int) // GRID_TILE_SIZE) != self.grid_loc:
+            GRID[self.grid_loc][self.__class__].remove(self)
+            self.grid_loc = tuple(self.pos.astype(int) // GRID_TILE_SIZE)
+            GRID[self.grid_loc][self.__class__].append(self)
+
     @classmethod
     def update_all(cls):
         for b in cls.instances:
             b.update()
     
     def update(self):
-        group = self.get_collisions(self, self.sight)
-        new_vector = rules(self, group, self.border_walls)
-        new_angle = np.arctan2(*new_vector[-1::-1])
-        new_angle = (new_angle + 2*np.pi) % (2*np.pi)
-        rot_angle = new_angle - self.angle
-        
-        if abs(rot_angle) > self.turn_rate:
-            # multiply by -1 if rot_angle is negative
-            rot_angle = self.turn_rate * (rot_angle / abs(rot_angle))
-
-        rot_matrix = np.array([
-            [np.cos(rot_angle), -np.sin(rot_angle)],
-            [np.sin(rot_angle),  np.cos(rot_angle)]
-        ])
-
-        # self.vector = rot_matrix.dot(self.vector)
-        self.vector = new_vector / np.linalg.norm(new_vector)
-
-        if self.angle < 0:
-            self.angle += 2 * np.pi
-
-        if self.angle > 2 * np.pi:
-            self.angle %= 2 * np.pi
+        group = []
+        walls = []
+        for tile in self.grid_adjacent().flat:
+            group.extend([
+                b for b in tile[self.__class__] \
+                    if not b is self and b.rect.colliderect(self.sight)
+            ])
+            walls.extend([
+                w for w in tile['walls'] if self.sight.colliderect(w)])
+        new_vector = rules(self, group, walls)
+        # new_vector = rules(self, [b for b in self.instances if self.sight.colliderect(b.rect)], self.border_walls)
+        self.vector = new_vector / np.linalg.norm(new_vector) # unit vector
 
     @classmethod
     def draw_all(cls):
+        cls.surface.fill((0, 0, 0))
+        cls.overlay.fill((0, 0, 0))
         for instance in cls.instances:
             instance.draw()
 
     def draw(self):
         pygame.gfxdraw.filled_polygon(self.surface, self.poly.astype(int), self.color)
-        pygame.gfxdraw.aapolygon(self.surface, self.poly.astype(int), self.color)
+        # pygame.gfxdraw.aapolygon(self.surface, self.poly.astype(int), self.color)
         # pygame.draw.aalines(self.surface, self.outline_color, True, self.poly)
         # pygame.draw.rect(self.surface, self.color, self.sight)
         # pygame.draw.rect(self.overlay, (255, 255, 255), self.sight)
@@ -309,16 +340,24 @@ def main_loop(
     clock,
     mouse=Mouse()
     ):
+    global CURRENT_FRAME_TIME
+    global LAST_FRAME_TIME
+    seconds_per_frame = 1. / FPS
+    CURRENT_FRAME_TIME = time.time()
+    LAST_FRAME_TIME = CURRENT_FRAME_TIME - seconds_per_frame
     done = False
     state = {}
     last_time = time.time()
+    wall_surf = pygame.Surface(SCREENSIZE)
+    # wall_surf.set_colorkey((0, 0, 0))
+    wall_surf.fill((0, 0, 0))
+    for wall in Boid.border_walls:
+            pygame.draw.rect(wall_surf, (150, 150, 150), wall)
+
+    times = defaultdict(list)
 
     while not done:
-        screen.fill((0, 0, 0))
-        if DEBUG:
-            DEBUG_SURF.fill((0, 0, 0))
-        Boid.surface.fill((0, 0, 0))
-        Boid.overlay.fill((0, 0, 0))
+        frame_start = time.time()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -331,19 +370,52 @@ def main_loop(
                 mouse.button[event.button] = False
 
         # print(mouse.button)
+
+        now = time.time()
         Boid.move_all()
+        move_time = time.time() - now
+
+        now = time.time()
         Boid.update_all()
+        update_time = time.time() - now
+
+        now = time.time()
         Boid.draw_all()
+        draw_time = time.time() - now
 
-        for wall in Boid.border_walls:
-            pygame.draw.rect(screen, (150, 150, 150), wall)
-
+        now = time.time()
+        screen.blit(wall_surf, (0, 0))
         screen.blit(Boid.get_surface(), (0, 0), special_flags=BLEND_MAX)
-        screen.blit(DEBUG_SURF, (0, 0))
+        blit_time = time.time() - now
+        
+        pygame.display.flip()
+        frame_end = time.time()
+        times['move_time'].append(move_time)
+        times['update_time'].append(update_time)
+        times['draw_time'].append(draw_time)
+        times['blit_time'].append(blit_time)
+        times['frame_time'].append(frame_end - frame_start)
+
         if time.time() - last_time > 1:
+            print(f'''
+            \r\t{N_BOID} boids | {len(Boid.border_walls)} walls | screen: {SCREENSIZE[0]} x {SCREENSIZE[1]}
+            \r\tframes: {len(times["frame_time"])}
+            \r\t--------------------------
+            \r\tmove_time  : {np.mean(times["move_time"]) * 1e3:>10.6f} ms
+            \r\tupdate_time: {np.mean(times["update_time"]) * 1e3:>10.6f} ms
+            \r\tdraw_time  : {np.mean(times["draw_time"]) * 1e3:>10.6f} ms
+            \r\tblit_time  : {np.mean(times["blit_time"]) * 1e3:>10.6f} ms
+            \r\t--------------------------
+            \r\tframe_time : {np.mean(times["frame_time"]) * 1e3:>10.6f}
+            ''')
+            for _, time_list in times.items():
+                time_list.clear()
+            if DEBUG:
+                screen.blit(DEBUG_SURF, (0, 0))
+                DEBUG_SURF.fill((0, 0, 0))
             pygame.display.set_caption(f'FPS: {clock.get_fps():1.2f}')
             last_time = time.time()
-        pygame.display.flip()
+        
         clock.tick(FPS)
         
 
@@ -355,8 +427,16 @@ def main():
     screen = pygame.display.set_mode(SCREENSIZE)
     screen.fill((255, 255, 255))
     pygame.display.flip()
-    for _ in range(ENTCOUNT):
-        Boid([random.randint(1, x-1) for x in SCREENSIZE])
+    for _ in range(N_BOID):
+        Boid(
+            [random.randint(1, x-1) for x in SCREENSIZE],
+            BOID_SPEED,
+            BOID_SIGHT,
+            BOID_SIZE,
+            BOID_SEPERATION_DISTANCE,
+            angle=(np.random.rand() * 2 * np.pi),
+            obst_avoidance_arc=BOID_OBST_AVOID_ARC
+        )
     screen.fill((0, 0, 0))
     pygame.display.flip()
     # pygame.display.update([
