@@ -15,8 +15,11 @@ FPS = 60
 SCREENSIZE = (500, 500)
 GRID_TILE_SIZE = 25 # pixels
 BORDER_WALLS = True
+OBSTACLE_MOVE_TIME = 10 # wont move when 0
 N_OBSTACLES = 15
 N_BOID = 100
+BOID_COLOR_ROT = 0
+BOID_COLOR_ROT_RATE = np.pi/128
 BOID_SEPERATION_DISTANCE = 7
 BOID_SIZE = 5
 BOID_SIGHT = 25
@@ -166,13 +169,18 @@ class Boid:
 
     instances = []
     inst_rects = []
-    surface = pygame.Surface(SCREENSIZE)
-    overlay = pygame.Surface(SCREENSIZE)
-    overlay.fill((0, 0, 0))
-    overlay.set_colorkey((0, 0, 0))
-    overlay.set_alpha(50)
-    game_border = surface.get_rect()
+    background_surface = pygame.Surface(SCREENSIZE)
+    boid_surface = pygame.Surface(SCREENSIZE)
+    boid_surface.set_colorkey((0, 0, 0))
+    overlay_surface = pygame.Surface(SCREENSIZE)
+    overlay_surface.set_colorkey((0, 0, 0))
+    overlay_surface.set_alpha(50)
+    game_border = background_surface.get_rect()
     border_walls = []
+    obstacles = []
+    wall_color = (150, 150, 150)
+    obstacle_color = (100, 100, 100)
+    
     if BORDER_WALLS:
         border_walls.extend([
             *[pygame.Rect(x*10, 0, 10, 10) \
@@ -184,9 +192,15 @@ class Boid:
             *[pygame.Rect(SCREENSIZE[0]-10, y*10, 10, 10) \
                 for y in range(SCREENSIZE[1] // 10 + 1)],
         ])
+
+        for wall in border_walls:
+            GRID[
+                wall.center[0] // GRID_TILE_SIZE,
+                wall.center[1] // GRID_TILE_SIZE
+            ]['walls'].append(wall)
         
     if N_OBSTACLES:
-        border_walls.extend([
+        obstacles.extend([
             pygame.Rect(
                 np.random.randint(SCREENSIZE[0]),
                 np.random.randint(SCREENSIZE[1]),
@@ -194,17 +208,11 @@ class Boid:
                 10
             ) for _ in range(N_OBSTACLES)
         ])
-
-    for wall in border_walls:
-        GRID[
-            wall.center[0] // GRID_TILE_SIZE,
-            wall.center[1] // GRID_TILE_SIZE
-        ]['walls'].append(wall)
-
-    # for x in range(GRID.shape[0]):
-    #     for y in range(GRID.shape[1]):
-    #         lst = GRID[x, y]['walls']
-    #         print(f'({x:>2}, {y:>2}) : {len(lst)} walls')
+        for obst in obstacles:
+            GRID[
+                obst.center[0] // GRID_TILE_SIZE,
+                obst.center[1] // GRID_TILE_SIZE
+            ]['walls'].append(obst)    
 
     def __init__(self,
     pos: List[int],
@@ -228,11 +236,11 @@ class Boid:
         self._update_color()
 
         self.path_history = deque(
-            [self.pos] * BOID_PATH_TRACE_SEGMENTS,
+            # [self.pos] * BOID_PATH_TRACE_SEGMENTS,
             maxlen=BOID_PATH_TRACE_SEGMENTS
         )
         self.color_history = deque(
-            [self.color] * BOID_PATH_TRACE_SEGMENTS,
+            # [self.color] * BOID_PATH_TRACE_SEGMENTS,
             maxlen=BOID_PATH_TRACE_SEGMENTS
         )
 
@@ -261,7 +269,7 @@ class Boid:
 
     def _update_color(self):
         # offset = 2 * np.pi / 3
-        angle = self.angle
+        angle = self.angle + BOID_COLOR_ROT
 
         color = np.array([
             np.cos(angle                ) * 127 + 128,
@@ -287,9 +295,12 @@ class Boid:
         return points * self.size + self.pos
 
     @classmethod
-    def get_surface(cls):
-        cls.surface.blit(cls.overlay, (0, 0))
-        return cls.surface
+    def get_surfaces(cls):
+        return [
+            cls.background_surface,
+            cls.boid_surface,
+            cls.overlay_surface
+        ]
 
     @classmethod
     def get_collisions(cls, boid, rect) -> list:
@@ -298,15 +309,31 @@ class Boid:
             cls.instances)]
 
     @classmethod
+    def move_obstacles(cls):
+        for cell in GRID.flat:
+            for wall in cell['walls']:
+                if wall in cls.obstacles:
+                    cell['walls'].remove(wall)
+
+        for obst in cls.obstacles:
+            old_loc = obst.center
+            obst.center = (
+                np.random.randint(SCREENSIZE[0]),
+                np.random.randint(SCREENSIZE[1])
+            )
+            GRID[
+                obst.centerx // GRID_TILE_SIZE,
+                obst.centery // GRID_TILE_SIZE
+            ]['walls'].append(obst)
+
+        cls.draw_background()
+
+    @classmethod
     def move_all(cls):
         for instance in cls.instances:
             instance.move()
 
     def move(self):
-        if BOID_PATH_TRACE:
-            self.path_history.append(self.pos.astype(int))
-            self.color_history.append(self.color)
-
         self.pos += self.speed * self.angle_to_vector(self.angle)
 
         if self.pos[0] < 0:
@@ -323,6 +350,10 @@ class Boid:
 
         self.rect.center = self.pos.astype(int)
         self.sight.center = self.pos.astype(int)
+
+        if BOID_PATH_TRACE:
+            self.path_history.append(self.pos.astype(int))
+            self.color_history.append(self.color)
 
         # keep track of grid location
         if tuple(self.pos.astype(int) // GRID_TILE_SIZE) != self.grid_loc:
@@ -351,9 +382,35 @@ class Boid:
         self._update_color()
 
     @classmethod
+    def draw_background(cls):
+        cls.background_surface.fill((0, 0, 0))
+        for wall in Boid.border_walls:
+                pygame.draw.rect(cls.background_surface, cls.wall_color, wall)
+
+        for obst in cls.obstacles:
+            pygame.draw.rect(cls.background_surface, cls.obstacle_color, obst)
+
+        if DEBUG:
+            for x in range(SCREENSIZE[0] // GRID_TILE_SIZE):
+                pygame.gfxdraw.vline(
+                    Boid.background_surface,
+                    x * GRID_TILE_SIZE,
+                    0,
+                    SCREENSIZE[1],
+                    (50, 50, 50))
+
+            for y in range(SCREENSIZE[1] // GRID_TILE_SIZE):
+                pygame.gfxdraw.hline(
+                    Boid.background_surface,
+                    0,
+                    SCREENSIZE[0],
+                    y * GRID_TILE_SIZE,
+                    (50, 50, 50))
+
+    @classmethod
     def draw_all(cls):
-        cls.surface.fill((0, 0, 0))
-        cls.overlay.fill((0, 0, 0))
+        cls.boid_surface.fill((0, 0, 0))
+        cls.overlay_surface.fill((0, 0, 0))
 
         if BOID_PATH_TRACE:
             for instance in cls.instances:
@@ -363,14 +420,14 @@ class Boid:
             instance.draw()
 
     def draw(self):
-        pygame.gfxdraw.filled_polygon(self.surface, self.poly.astype(int), self.color)
+        pygame.gfxdraw.filled_polygon(self.boid_surface, self.poly.astype(int), self.color)
         # pygame.gfxdraw.aapolygon(self.surface, self.poly.astype(int), color)
 
     def draw_trace(self):
-        for i in range(BOID_PATH_TRACE_SEGMENTS-1, 0, -1):
+        for i in range(len(self.path_history)-1, 0, -1):
             pygame.draw.aaline(
-                self.surface,
-                self.color_history[i] * (i/BOID_PATH_TRACE_SEGMENTS),
+                self.boid_surface,
+                self.color_history[i] * (i/len(self.color_history)),
                 self.path_history[i],
                 self.path_history[i-1]
             )
@@ -392,42 +449,23 @@ def main_loop(
     ):
     global CURRENT_FRAME_TIME
     global LAST_FRAME_TIME
+    global BOID_COLOR_ROT
     seconds_per_frame = 1. / FPS
     CURRENT_FRAME_TIME = time.time()
     LAST_FRAME_TIME = CURRENT_FRAME_TIME - seconds_per_frame
+    obstacle_timer = time.time()
     done = False
     state = {}
     last_time = time.time()
-    wall_surf = pygame.Surface(SCREENSIZE)
-    # wall_surf.set_colorkey((0, 0, 0))
-    wall_surf.fill((0, 0, 0))
-    for wall in Boid.border_walls:
-            pygame.draw.rect(wall_surf, (150, 150, 150), wall)
-    
-    if DEBUG:
-        for x in range(SCREENSIZE[0] // GRID_TILE_SIZE):
-            pygame.gfxdraw.vline(
-                wall_surf,
-                x * GRID_TILE_SIZE,
-                0,
-                SCREENSIZE[1],
-                (50, 50, 50))
-
-        for y in range(SCREENSIZE[1] // GRID_TILE_SIZE):
-            pygame.gfxdraw.hline(
-                wall_surf,
-                0,
-                SCREENSIZE[0],
-                y * GRID_TILE_SIZE,
-                (50, 50, 50))
-
+    Boid.draw_background()
     times = defaultdict(list)
 
     while not done:
         frame_start = time.time()
+        BOID_COLOR_ROT += BOID_COLOR_ROT_RATE
 
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+            if event.type == QUIT:
                 done = True
             
             if event.type == MOUSEBUTTONDOWN:
@@ -451,8 +489,8 @@ def main_loop(
             draw_time = time.time() - now
 
             now = time.time()
-            screen.blit(wall_surf, (0, 0))
-            screen.blit(Boid.get_surface(), (0, 0), special_flags=BLEND_MAX)
+            for surface in Boid.get_surfaces():
+                screen.blit(surface, (0, 0))
             blit_time = time.time() - now
 
             pygame.display.flip()
@@ -489,15 +527,20 @@ def main_loop(
             Boid.move_all()
             Boid.update_all()
             Boid.draw_all()
-            screen.blit(wall_surf, (0, 0))
-            screen.blit(Boid.get_surface(), (0, 0), special_flags=BLEND_MAX)
-        
+
+            for surface in Boid.get_surfaces():
+                screen.blit(surface, (0, 0))
+
             pygame.display.flip()
             frame_end = time.time()
         
+        end_of_frame_time = time.time()
+
+        if OBSTACLE_MOVE_TIME and end_of_frame_time - obstacle_timer > OBSTACLE_MOVE_TIME:
+            Boid.move_obstacles()
+            obstacle_timer = time.time()
 
         if time.time() - last_time > 1:
-
             pygame.display.set_caption(f'FPS: {clock.get_fps():1.2f}')
             last_time = time.time()
         
@@ -524,10 +567,6 @@ def main():
         )
     screen.fill((0, 0, 0))
     pygame.display.flip()
-    # pygame.display.update([
-    #     *[b.rect for b in Boid.instances],
-    #     *[w for w in Boid.border_walls]
-    # ])
 
     main_loop(screen, clock)
 
@@ -536,4 +575,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
