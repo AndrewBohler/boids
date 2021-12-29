@@ -16,12 +16,15 @@ python boids.py
 
 pygame is not hosted on Anaconda so you have to install it with pip
 
-If you are on Mac I suggest using pyenv and then:
+----------------------------------------------------------------------
+
+If you are on Mac I suggest using pyenv with pyenv-virtualenv and then:
 
 ```
 git clone https://github.com/AndrewBohler/boids
 cd boids
-pyenv install $(cat .python-version)
+pyenv install 3.8.12
+pyenv virtualenv 3.8.12 andrewbohler-boids
 pyenv activate
 pip install -r requirements.txt
 python boids.py
