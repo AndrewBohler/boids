@@ -18,7 +18,7 @@ pygame is not hosted on Anaconda so you have to install it with pip
 
 ----------------------------------------------------------------------
 
-If you are on Mac I suggest using pyenv with pyenv-virtualenv and then:
+If you are on Mac I suggest using pyenv with pyenv-virtualenv
 
 ```
 git clone https://github.com/AndrewBohler/boids
@@ -30,5 +30,5 @@ pip install -r requirements.txt
 python boids.py
 ```
 
-If you are using zsh and have the hook for pyenv enabled then the `.python-version` file should tell pyenv to use the right python version automatically when you cd into the `boids` folder
+If you are using zsh and have the hook for pyenv enabled then the `.python-version` file should tell pyenv to use the right python version and environment automatically when you cd into the `boids` folder
 
