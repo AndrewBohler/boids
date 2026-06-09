@@ -64,7 +64,7 @@ def rules(
                 < boid.seperation_distance,
             group)
         ]
-        
+
         if too_close:
             average_vector = np.mean(too_close, axis=0) - boid.pos
             unit_vector = average_vector / np.linalg.norm(average_vector)
@@ -78,10 +78,10 @@ def rules(
         # weight 2
         if group:
             average_vector = np.mean(np.stack([b.vector for b in group]), axis=0)
-            
+
             # unit vector
             return average_vector / np.linalg.norm(average_vector)
-        
+
         else:
             return np.array([np.nan, np.nan])
 
@@ -115,7 +115,7 @@ def rules(
             # boid.vector obmitted because magnitude = 1
             relative_angle = np.arccos(
                 boid.vector.dot(relative_vector) / relative_norm)
-            
+
             if abs(relative_angle) < np.pi/4:
                 can_see.append(obst.center)
                 # can_see_distance.append(relative_norm)
@@ -141,7 +141,7 @@ def rules(
                 5, (255, 100, 100))
             # line away from average vector
             pygame.draw.aaline(
-                DEBUG_SURF, (150, 150, 255), 
+                DEBUG_SURF, (150, 150, 255),
                 average_vector.astype(int), (boid.pos + (-unit_vector*25)).astype(int))
             # endcap for line
             pygame.gfxdraw.filled_circle(
@@ -152,7 +152,7 @@ def rules(
                 DEBUG_SURF, boid.poly, (255, 255, 255))
 
         return -unit_vector * (distance / boid.seperation_distance)
-        
+
     ret = np.array([
         boid.vector,
         seperation(),
@@ -366,7 +366,7 @@ class Boid:
     def update_all(cls):
         for b in cls.instances:
             b.update()
-    
+
     def update(self):
         group = []
         walls = []
@@ -469,7 +469,7 @@ def main_loop(
         for event in pygame.event.get():
             if event.type == QUIT:
                 done = True
-            
+
             if event.type == MOUSEBUTTONDOWN:
                 mouse.button[event.button] = True
 
@@ -524,7 +524,7 @@ def main_loop(
 
                 pygame.display.set_caption(f'FPS: {clock.get_fps():1.2f}')
                 last_time = time.time()
-        
+
         else:
             Boid.move_all()
             Boid.update_all()
@@ -535,7 +535,7 @@ def main_loop(
 
             pygame.display.flip()
             frame_end = time.time()
-        
+
         end_of_frame_time = time.time()
 
         if settings.OBSTACLE_MOVE_TIME and end_of_frame_time - obstacle_timer > settings.OBSTACLE_MOVE_TIME:
@@ -545,9 +545,9 @@ def main_loop(
         if time.time() - last_time > 1:
             pygame.display.set_caption(f'FPS: {clock.get_fps():1.2f}')
             last_time = time.time()
-        
+
         clock.tick(settings.FPS)
-        
+
 
 def main(settings: config.Settings):
     set_globals(settings)
