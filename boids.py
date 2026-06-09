@@ -454,7 +454,7 @@ class Keyboard:
     key = defaultdict(lambda k: False)
 
 
-def main_loop(
+def run_loop(
     screen,
     clock,
     settings: config.Settings,
@@ -560,7 +560,7 @@ def main_loop(
         clock.tick(settings.FPS)
 
 
-def main(settings: config.Settings):
+def run(settings: config.Settings):
     set_globals(settings)
     Boid.init_class_vars()
     pygame.init()
@@ -583,11 +583,6 @@ def main(settings: config.Settings):
     screen.fill((0, 0, 0))
     pygame.display.flip()
 
-    main_loop(screen, clock, settings)
+    run_loop(screen, clock, settings)
 
     pygame.quit()
-
-
-if __name__ == '__main__':
-    settings = config.Settings()
-    main(settings)
