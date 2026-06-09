@@ -4,7 +4,7 @@ import boids
 from config import Settings
 
 
-def parse_args() -> Settings:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Boid simulation")
 
     # get defaults for help text
@@ -53,9 +53,14 @@ def parse_args() -> Settings:
     parser.add_argument("--debug", action=argparse.BooleanOptionalAction, default=None,
         help=f"Enable debug overlay and timing output (default: {s.debug})")
 
-    a = parser.parse_args()
+    ret = parser.parse_args()
 
-    return Settings(
+    return ret
+
+
+if __name__ == "__main__":
+    a = parse_args()
+    settings = Settings(
         fps=a.fps,
         screen_size=tuple(a.screen_size) if a.screen_size else None,
         grid_tile_size=a.grid_tile_size,
@@ -78,8 +83,4 @@ def parse_args() -> Settings:
         w_obstacle=a.w_obstacle,
         debug=a.debug,
     )
-
-
-if __name__ == "__main__":
-    settings = parse_args()
     boids.run(settings)
