@@ -11,35 +11,35 @@ def parse_args() -> argparse.Namespace:
     s = Settings()
 
     parser.add_argument("--fps", type=int, default=None,
-        help=f"Target frames per second (default: {s.FPS})")
+        help=f"Target frames per second (default: {s.fps})")
     parser.add_argument("--screen-size", type=int, nargs=2, metavar=("W", "H"), default=None,
-        help=f"Window size in pixels (default: {s.SCREENSIZE[0]} {s.SCREENSIZE[1]})")
+        help=f"Window size in pixels (default: {s.screen_size[0]} {s.screen_size[1]})")
     parser.add_argument("--grid-tile-size", type=int, default=None,
-        help=f"Spatial grid tile size in pixels (default: {s.GRID_TILE_SIZE})")
+        help=f"Spatial grid tile size in pixels (default: {s.grid_tile_size})")
     parser.add_argument("--border-walls", action=argparse.BooleanOptionalAction, default=None,
-        help=f"Enable/disable border walls (default: {s.BORDER_WALLS})")
+        help=f"Enable/disable border walls (default: {s.border_walls})")
     parser.add_argument("--obstacle-move-time", type=int, default=None,
-        help=f"Seconds between obstacle relocations, 0 to disable (default: {s.OBSTACLE_MOVE_TIME})")
+        help=f"Seconds between obstacle relocations, 0 to disable (default: {s.obstacle_move_time})")
     parser.add_argument("--n-obstacles", type=int, default=None,
-        help=f"Number of obstacles (default: {s.N_OBSTACLES})")
+        help=f"Number of obstacles (default: {s.n_obstacles})")
     parser.add_argument("--n-boids", type=int, default=None,
-        help=f"Number of boids (default: {s.N_BOID})")
+        help=f"Number of boids (default: {s.n_boids})")
     parser.add_argument("--boid-color-rot-rate", type=float, default=None,
-        help=f"Color rotation rate in radians per frame (default: {s.BOID_COLOR_ROT_RATE:.6f})")
+        help=f"Color rotation rate in radians per frame (default: {s.boid_color_rot_rate:.6f})")
     parser.add_argument("--boid-separation-distance", type=int, default=None,
-        help=f"Distance at which boids repel each other (default: {s.BOID_SEPERATION_DISTANCE})")
+        help=f"Distance at which boids repel each other (default: {s.boid_separation_dist})")
     parser.add_argument("--boid-size", type=int, default=None,
-        help=f"Boid size in pixels (default: {s.BOID_SIZE})")
+        help=f"Boid size in pixels (default: {s.boid_size})")
     parser.add_argument("--boid-sight", type=int, default=None,
-        help=f"Boid sight radius in pixels (default: {s.BOID_SIGHT})")
+        help=f"Boid sight radius in pixels (default: {s.boid_sight})")
     parser.add_argument("--boid-speed", type=int, default=None,
-        help=f"Boid speed in pixels per frame (default: {s.BOID_SPEED})")
+        help=f"Boid speed in pixels per frame (default: {s.boid_speed})")
     parser.add_argument("--boid-obst-avoid-arc", type=float, default=None,
-        help=f"Obstacle avoidance arc in radians (default: {s.BOID_OBST_AVOID_ARC:.6f})")
+        help=f"Obstacle avoidance arc in radians (default: {s.boid_obst_avoid_arc:.6f})")
     parser.add_argument("--boid-path-trace", action=argparse.BooleanOptionalAction, default=None,
-        help=f"Enable/disable path trail rendering (default: {s.BOID_PATH_TRACE})")
-    parser.add_argument("--boid-path-trace-segments", type=int, default=None,
-        help=f"Number of path trail segments (default: {s.BOID_PATH_TRACE_SEGMENTS})")
+        help=f"Enable/disable path trail rendering (default: {s.boid_path_trace})")
+    parser.add_argument("--boid-path-segments", type=int, default=None,
+        help=f"Number of path trail segments (default: {s.boid_path_segments})")
     parser.add_argument("--w-vector", type=float, default=None,
         help=f"Rule weight: current heading (default: {s.w_vector})")
     parser.add_argument("--w-separation", type=float, default=None,
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         boid_speed=a.boid_speed,
         boid_obst_avoid_arc=a.boid_obst_avoid_arc,
         boid_path_trace=a.boid_path_trace,
-        boid_path_trace_segments=a.boid_path_trace_segments,
+        boid_path_segments=a.boid_path_segments,
         w_vector=a.w_vector,
         w_separation=a.w_separation,
         w_alignment=a.w_alignment,

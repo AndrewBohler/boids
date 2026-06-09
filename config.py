@@ -18,7 +18,7 @@ class Settings:
         boid_speed: int | None = None,
         boid_obst_avoid_arc: float | None = None,
         boid_path_trace: bool | None = None,
-        boid_path_trace_segments: int | None = None,
+        boid_path_segments: int | None = None,
         w_vector: float | None = None,
         w_separation: float | None = None,
         w_alignment: float | None = None,
@@ -26,40 +26,40 @@ class Settings:
         w_obstacle: float | None = None,
         debug: bool | None = None,
     ) -> None:
-        self.FPS = fps or 30
-        self.SCREENSIZE = screen_size or (500, 500)
-        self.GRID_TILE_SIZE = grid_tile_size or 25 # pixels
+        self.fps = fps or 30
+        self.screen_size = screen_size or (500, 500)
+        self.grid_tile_size = grid_tile_size or 25 # pixels
         if border_walls is None:
-            self.BORDER_WALLS = True
+            self.border_walls = True
         else:
-            self.BORDER_WALLS = border_walls
+            self.border_walls = border_walls
         # wont move when 0
         if obstacle_move_time is None:
-            self.OBSTACLE_MOVE_TIME = 10
+            self.obstacle_move_time = 10
         else:
-            self.OBSTACLE_MOVE_TIME = obstacle_move_time
+            self.obstacle_move_time = obstacle_move_time
         if n_obstacles is None:
-            self.N_OBSTACLES = 15
+            self.n_obstacles = 15
         else:
-            self.N_OBSTACLES = n_obstacles
-        self.N_BOID = n_boids or 100
+            self.n_obstacles = n_obstacles
+        self.n_boids = n_boids or 100
         if boid_color_rot_rate is None:
-            self.BOID_COLOR_ROT_RATE = np.pi/128
+            self.boid_color_rot_rate = np.pi/128
         else:
-            self.BOID_COLOR_ROT_RATE = boid_color_rot_rate
-        self.BOID_SEPERATION_DISTANCE = boid_seperation_distance or 7
-        self.BOID_SIZE = boid_size or 5
-        self.BOID_SIGHT = boid_sight or 25
-        self.BOID_SPEED = boid_speed or 3
-        self.BOID_OBST_AVOID_ARC = boid_obst_avoid_arc or np.pi/16 # radians
+            self.boid_color_rot_rate = boid_color_rot_rate
+        self.boid_separation_dist = boid_seperation_distance or 7
+        self.boid_size = boid_size or 5
+        self.boid_sight = boid_sight or 25
+        self.boid_speed = boid_speed or 3
+        self.boid_obst_avoid_arc = boid_obst_avoid_arc or np.pi/16 # radians
         if boid_path_trace is None:
-            self.BOID_PATH_TRACE = True
+            self.boid_path_trace = True
         else:
-            self.BOID_PATH_TRACE = boid_path_trace
-        if boid_path_trace_segments is None:
-            self.BOID_PATH_TRACE_SEGMENTS = 50
+            self.boid_path_trace = boid_path_trace
+        if boid_path_segments is None:
+            self.boid_path_segments = 50
         else:
-            self.BOID_PATH_TRACE_SEGMENTS = boid_path_trace_segments
+            self.boid_path_segments = boid_path_segments
 
         # rule weights
         if w_vector is None:
