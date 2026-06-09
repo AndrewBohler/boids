@@ -4,10 +4,10 @@ import numpy as np
 import numpy.typing as npt
 import pygame
 import pygame.gfxdraw
-from pygame.locals import *
+import pygame.locals as pg_locals
 import random
 import time
-from typing import cast, List, Tuple, Iterable
+from typing import cast, List, Iterable, Protocol
 
 import config
 
@@ -46,11 +46,15 @@ def build_rule_weights(settings: config.Settings) -> npt.NDArray:
     return ret
 
 
+class PositionalObject(Protocol):
+    pos: npt.NDArray
+    vector: npt.NDArray
+
 # rules that boids live by:
 ###########################
 def rules(
     boid,
-    group: Iterable[object],
+    group: Iterable[PositionalObject],
     obstacles: Iterable[pygame.Rect],
     weights: npt.NDArray | None = None,
 ) -> np.ndarray:
@@ -133,23 +137,30 @@ def rules(
             for v in can_see:
                 # from obstacle to avg vector
                 pygame.draw.aaline(
-                    DEBUG_SURF, (255, 100, 100),
-                    v, average_vector.astype(int))
+                    DEBUG_SURF, (255, 100, 100), v, average_vector.astype(int)
+                )
             # circle at avg vector
             pygame.gfxdraw.filled_circle(
-                DEBUG_SURF,*average_vector.astype(int),
-                5, (255, 100, 100))
+                DEBUG_SURF, *average_vector.astype(int), 5, (255, 100, 100)
+            )
             # line away from average vector
             pygame.draw.aaline(
-                DEBUG_SURF, (150, 150, 255),
-                average_vector.astype(int), (boid.pos + (-unit_vector*25)).astype(int))
+                DEBUG_SURF,
+                (150, 150, 255),
+                average_vector.astype(int),
+                (boid.pos + (-unit_vector*25)).astype(int),
+            )
             # endcap for line
             pygame.gfxdraw.filled_circle(
-                DEBUG_SURF, *(boid.pos -unit_vector*25).astype(int),
-                5, (150, 150, 255))
+                DEBUG_SURF,
+                *(boid.pos -unit_vector*25).astype(int),
+                5,
+                (150, 150, 255),
+            )
             # highlight boid
             pygame.gfxdraw.filled_polygon(
-                DEBUG_SURF, boid.poly, (255, 255, 255))
+                DEBUG_SURF, boid.poly, (255, 255, 255)
+            )
 
         return -unit_vector * (distance / boid.seperation_distance)
 
@@ -467,13 +478,13 @@ def main_loop(
         BOID_COLOR_ROT += settings.BOID_COLOR_ROT_RATE
 
         for event in pygame.event.get():
-            if event.type == QUIT:
+            if event.type == pg_locals.QUIT:
                 done = True
 
-            if event.type == MOUSEBUTTONDOWN:
+            if event.type == pg_locals.MOUSEBUTTONDOWN:
                 mouse.button[event.button] = True
 
-            if event.type == MOUSEBUTTONUP:
+            if event.type == pg_locals.MOUSEBUTTONUP:
                 mouse.button[event.button] = False
 
         # print(mouse.button)
@@ -514,7 +525,7 @@ def main_loop(
                 \r\tdraw_time  : {np.mean(times["draw_time"]) * 1e3:>10.6f} ms
                 \r\tblit_time  : {np.mean(times["blit_time"]) * 1e3:>10.6f} ms
                 \r\t--------------------------
-                \r\tframe_time : {np.mean(times["frame_time"]) * 1e3:>10.6f}
+                \r\tframe_time : {np.mean(times["frame_time"]) * 1e3:>10.6f} s
                 ''')
                 for _, time_list in times.items():
                     time_list.clear()
